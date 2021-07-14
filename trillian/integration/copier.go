@@ -1,4 +1,4 @@
-// Copyright 2018 Google Inc. All Rights Reserved.
+// Copyright 2018 Google LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/google/certificate-transparency-go/client"
 	"github.com/google/certificate-transparency-go/scanner"
 	"github.com/google/certificate-transparency-go/trillian/ctfe"
@@ -79,16 +78,16 @@ func NewCopyChainGeneratorFromOpts(ctx context.Context, client *client.LogClient
 	var start, limit time.Time
 	var err error
 	if cfg.NotAfterStart != nil {
-		start, err = ptypes.Timestamp(cfg.NotAfterStart)
-		if err != nil {
+		if err := cfg.NotAfterStart.CheckValid(); err != nil {
 			return nil, fmt.Errorf("failed to parse NotAfterStart: %v", err)
 		}
+		start = cfg.NotAfterStart.AsTime()
 	}
 	if cfg.NotAfterLimit != nil {
-		limit, err = ptypes.Timestamp(cfg.NotAfterLimit)
-		if err != nil {
+		if err := cfg.NotAfterLimit.CheckValid(); err != nil {
 			return nil, fmt.Errorf("failed to parse NotAfterLimit: %v", err)
 		}
+		limit = cfg.NotAfterLimit.AsTime()
 	}
 
 	targetPool := ctfe.NewPEMCertPool()

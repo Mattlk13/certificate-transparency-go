@@ -1,4 +1,4 @@
-// Copyright 2018 Google Inc. All Rights Reserved.
+// Copyright 2018 Google LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,10 +30,9 @@ import (
 	"github.com/google/certificate-transparency-go/scanner"
 	"github.com/google/certificate-transparency-go/trillian/migrillian/configpb"
 
-	"github.com/google/trillian/merkle"
-	_ "github.com/google/trillian/merkle/rfc6962" // Register hasher.
+	"github.com/google/trillian/merkle/logverifier"
+	"github.com/google/trillian/merkle/rfc6962/hasher"
 	"github.com/google/trillian/monitoring"
-	"github.com/google/trillian/types"
 	"github.com/google/trillian/util/clock"
 	"github.com/google/trillian/util/election2"
 )
@@ -129,7 +128,7 @@ func NewController(
 	mf monitoring.MetricFactory,
 ) *Controller {
 	initMetrics(mf)
-	l := strconv.FormatInt(plClient.tree.TreeId, 10)
+	l := strconv.FormatInt(plClient.treeID, 10)
 	return &Controller{opts: opts, ctClient: ctClient, plClient: plClient, ef: ef, label: l}
 }
 
@@ -137,7 +136,7 @@ func NewController(
 // configured with continuous mode, restarts it whenever it returns.
 func (c *Controller) RunWhenMasterWithRestarts(ctx context.Context) {
 	uri := c.ctClient.BaseURI()
-	treeID := c.plClient.tree.TreeId
+	treeID := c.plClient.treeID
 	for run := true; run; run = c.opts.Continuous && ctx.Err() == nil {
 		glog.Infof("Starting migration Controller (%d<-%q)", treeID, uri)
 		if err := c.RunWhenMaster(ctx); err != nil {
@@ -263,19 +262,19 @@ func (c *Controller) Run(ctx context.Context) error {
 // with respect to the passed in minimal position to start from, and the
 // current tree size obtained from an STH.
 func (c *Controller) fetchTail(ctx context.Context, begin uint64) (uint64, error) {
-	root, err := c.plClient.getVerifiedRoot(ctx)
+	treeSize, rootHash, err := c.plClient.getRoot(ctx)
 	if err != nil {
 		return 0, err
 	}
 
 	fo := c.opts.FetcherOptions
 	if fo.Continuous { // Ignore range parameters in continuous mode.
-		fo.StartIndex, fo.EndIndex = int64(root.TreeSize), 0
+		fo.StartIndex, fo.EndIndex = int64(treeSize), 0
 		// Use non-continuous Fetcher, as we implement continuity in Controller.
 		// TODO(pavelkalinnikov): Don't overload Fetcher's Continuous flag.
 		fo.Continuous = false
 	} else if fo.StartIndex < 0 {
-		fo.StartIndex = int64(root.TreeSize)
+		fo.StartIndex = int64(treeSize)
 	}
 	if int64(begin) > fo.StartIndex {
 		fo.StartIndex = int64(begin)
@@ -293,7 +292,7 @@ func (c *Controller) fetchTail(ctx context.Context, begin uint64) (uint64, error
 		return begin, nil
 	}
 
-	if err := c.verifyConsistency(ctx, root, sth); err != nil {
+	if err := c.verifyConsistency(ctx, treeSize, rootHash, sth); err != nil {
 		return 0, err
 	}
 
@@ -332,18 +331,18 @@ func (c *Controller) fetchTail(ctx context.Context, begin uint64) (uint64, error
 
 // verifyConsistency checks that the provided verified Trillian root is
 // consistent with the CT log's STH.
-func (c *Controller) verifyConsistency(ctx context.Context, root *types.LogRootV1, sth *ct.SignedTreeHead) error {
+func (c *Controller) verifyConsistency(ctx context.Context, treeSize uint64, rootHash []byte, sth *ct.SignedTreeHead) error {
 	if c.opts.NoConsistencyCheck {
 		glog.Warningf("%s: skipping consistency check", c.label)
 		return nil
 	}
-	proof, err := c.ctClient.GetSTHConsistency(ctx, root.TreeSize, sth.TreeSize)
+	proof, err := c.ctClient.GetSTHConsistency(ctx, treeSize, sth.TreeSize)
 	if err != nil {
 		return err
 	}
-	return merkle.NewLogVerifier(c.plClient.verif.Hasher).VerifyConsistencyProof(
-		int64(root.TreeSize), int64(sth.TreeSize),
-		root.RootHash, sth.SHA256RootHash[:], proof)
+	return logverifier.New(hasher.DefaultHasher).VerifyConsistencyProof(
+		int64(treeSize), int64(sth.TreeSize),
+		rootHash, sth.SHA256RootHash[:], proof)
 }
 
 // runSubmitter obtains CT log entry batches from the controller's channel and

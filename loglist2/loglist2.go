@@ -1,4 +1,4 @@
-// Copyright 2018 Google Inc. All Rights Reserved.
+// Copyright 2018 Google LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,11 +36,11 @@ import (
 
 const (
 	// LogListURL has the master URL for Google Chrome's log list.
-	LogListURL = "https://www.gstatic.com/ct/log_list/v2beta/log_list.json"
+	LogListURL = "https://www.gstatic.com/ct/log_list/v2/log_list.json"
 	// LogListSignatureURL has the URL for the signature over Google Chrome's log list.
-	LogListSignatureURL = "https://www.gstatic.com/ct/log_list/v2beta/log_list.sig"
+	LogListSignatureURL = "https://www.gstatic.com/ct/log_list/v2/log_list.sig"
 	// AllLogListURL has the URL for the list of all known logs (which isn't signed).
-	AllLogListURL = "https://www.gstatic.com/ct/log_list/v2beta/all_logs_list.json"
+	AllLogListURL = "https://www.gstatic.com/ct/log_list/v2/all_logs_list.json"
 )
 
 // Manually mapped from https://www.gstatic.com/ct/log_list/v2beta/log_list_schema.json
@@ -82,7 +82,7 @@ type Log struct {
 	// log list distributor.
 	State *LogStates `json:"state,omitempty"`
 	// TemporalInterval, if set, indicates that this log only accepts
-	// certificates with a NotBefore date in this time range.
+	// certificates with a NotAfter date in this time range.
 	TemporalInterval *TemporalInterval `json:"temporal_interval,omitempty"`
 	// Type indicates the purpose of this log, e.g. "test" or "prod".
 	Type string `json:"log_type,omitempty"`

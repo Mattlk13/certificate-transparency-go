@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,20 +36,16 @@ import (
 	"github.com/golang/glog"
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/client"
-	"github.com/google/certificate-transparency-go/dnsclient"
 	"github.com/google/certificate-transparency-go/jsonclient"
 	"github.com/google/certificate-transparency-go/loglist"
 	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/certificate-transparency-go/x509util"
-	"github.com/google/trillian/merkle"
-	"github.com/google/trillian/merkle/rfc6962"
+	"github.com/google/trillian/merkle/logverifier"
+	"github.com/google/trillian/merkle/rfc6962/hasher"
 )
 
 var (
 	skipHTTPSVerify = flag.Bool("skip_https_verify", false, "Skip verification of HTTPS transport connection")
-	dnsBase         = flag.String("dns_base", "", "Base DNS name for queries; if non-empty, DNS queries rather than HTTP will be used")
-	useDNS          = flag.Bool("dns", false, "Use DNS access points for inclusion checking (requires --log_name or --dns_base)")
-	dnsServer       = flag.String("dns_server", "", "DNS server to direct queries to (system resolver by default)")
 	logName         = flag.String("log_name", "", "Name of log to retrieve information from --log_list for")
 	logList         = flag.String("log_list", loglist.AllLogListURL, "Location of master log list (URL or filename)")
 	logURI          = flag.String("log_uri", "https://ct.googleapis.com/rocketeer", "CT log base URI")
@@ -351,7 +347,7 @@ func getInclusionProofForHash(ctx context.Context, logClient client.CheckLogClie
 	}
 	if sth != nil {
 		// If we retrieved an STH we can verify the proof.
-		verifier := merkle.NewLogVerifier(rfc6962.DefaultHasher)
+		verifier := logverifier.New(hasher.DefaultHasher)
 		if err := verifier.VerifyInclusionProof(rsp.LeafIndex, int64(sth.TreeSize), rsp.AuditPath, sth.SHA256RootHash[:], hash); err != nil {
 			glog.Exitf("Failed to VerifyInclusionProof(%d, %d)=%v", rsp.LeafIndex, sth.TreeSize, err)
 		}
@@ -400,7 +396,7 @@ func getConsistencyProofBetween(ctx context.Context, logClient client.CheckLogCl
 		return
 	}
 	// We have tree hashes so we can verify the proof.
-	verifier := merkle.NewLogVerifier(rfc6962.DefaultHasher)
+	verifier := logverifier.New(hasher.DefaultHasher)
 	if err := verifier.VerifyConsistencyProof(first, second, prevHash, treeHash, proof); err != nil {
 		glog.Exitf("Failed to VerifyConsistencyProof(%x @size=%d, %x @size=%d): %v", prevHash, first, treeHash, second, err)
 	}
@@ -480,12 +476,8 @@ func main() {
 		}
 		opts.PublicKey = string(pubkey)
 	}
-	if len(*dnsServer) > 0 {
-		*useDNS = true
-	}
 
 	uri := *logURI
-	dns := *dnsBase
 	if *logName != "" {
 		llData, err := x509util.ReadFileOrURL(*logList, httpClient)
 		if err != nil {
@@ -508,33 +500,13 @@ func main() {
 			glog.Exitf("Multiple logs with name like %q found in loglist: %s", *logName, strings.Join(logNames, ","))
 		}
 		uri = "https://" + logs[0].URL
-		if *useDNS {
-			dns = logs[0].DNSAPIEndpoint
-		}
 		if opts.PublicKey == "" {
 			opts.PublicKeyDER = logs[0].Key
 		}
 	}
-	if *useDNS && dns == "" {
-		glog.Exit("DNS access requested (with --dns) but no DNS base name known")
-	}
 
-	var err error
-	var logClient *client.LogClient
-	var checkClient client.CheckLogClient
-	if dns != "" {
-		if *dnsServer != "" {
-			glog.V(1).Infof("Use DNS server at %s for basename %s", *dnsServer, dns)
-			checkClient, err = dnsclient.NewForNameServer(dns, opts, *dnsServer)
-		} else {
-			glog.V(1).Infof("Use system DNS resolver for basename %s", dns)
-			checkClient, err = dnsclient.New(dns, opts)
-		}
-	} else {
-		glog.V(1).Infof("Use CT log at %s", uri)
-		logClient, err = client.New(uri, httpClient, opts)
-		checkClient = logClient
-	}
+	glog.V(1).Infof("Use CT log at %s", uri)
+	logClient, err := client.New(uri, httpClient, opts)
 	if err != nil {
 		glog.Exit(err)
 	}
@@ -546,30 +518,18 @@ func main() {
 	cmd := args[0]
 	switch cmd {
 	case "sth":
-		getSTH(ctx, checkClient)
+		getSTH(ctx, logClient)
 	case "upload":
-		if logClient == nil {
-			glog.Exit("Cannot upload over DNS")
-		}
 		addChain(ctx, logClient)
 	case "getroots", "get_roots", "get-roots":
-		if logClient == nil {
-			glog.Exit("Cannot retrieve roots over DNS")
-		}
 		getRoots(ctx, logClient)
 	case "getentries", "get_entries", "get-entries":
-		if logClient == nil {
-			glog.Exit("Cannot get-entries over DNS")
-		}
 		getEntries(ctx, logClient)
 	case "inclusion", "inclusion-proof":
-		getInclusionProof(ctx, checkClient)
+		getInclusionProof(ctx, logClient)
 	case "consistency":
-		getConsistencyProof(ctx, checkClient)
+		getConsistencyProof(ctx, logClient)
 	case "bisect":
-		if logClient == nil {
-			glog.Exit("Cannot bisect over DNS")
-		}
 		findTimestamp(ctx, logClient)
 	default:
 		dieWithUsage(fmt.Sprintf("Unknown command '%s'", cmd))

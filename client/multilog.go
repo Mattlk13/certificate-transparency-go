@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc. All Rights Reserved.
+// Copyright 2017 Google LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,12 +23,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/client/configpb"
 	"github.com/google/certificate-transparency-go/jsonclient"
 	"github.com/google/certificate-transparency-go/x509"
+	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 )
 
 type interval struct {
@@ -49,7 +49,7 @@ func TemporalLogConfigFromFile(filename string) (*configpb.TemporalLogConfig, er
 	}
 
 	var cfg configpb.TemporalLogConfig
-	if txtErr := proto.UnmarshalText(string(cfgBytes), &cfg); txtErr != nil {
+	if txtErr := prototext.Unmarshal(cfgBytes, &cfg); txtErr != nil {
 		if binErr := proto.Unmarshal(cfgBytes, &cfg); binErr != nil {
 			return nil, fmt.Errorf("failed to parse TemporalLogConfig from %q as text protobuf (%v) or binary protobuf (%v)", filename, txtErr, binErr)
 		}
@@ -202,17 +202,17 @@ func (tlc *TemporalLogClient) IndexByDate(when time.Time) (int, error) {
 func shardInterval(cfg *configpb.LogShardConfig) (interval, error) {
 	var interval interval
 	if cfg.NotAfterStart != nil {
-		t, err := ptypes.Timestamp(cfg.NotAfterStart)
-		if err != nil {
+		if err := cfg.NotAfterStart.CheckValid(); err != nil {
 			return interval, fmt.Errorf("failed to parse NotAfterStart: %v", err)
 		}
+		t := cfg.NotAfterStart.AsTime()
 		interval.lower = &t
 	}
 	if cfg.NotAfterLimit != nil {
-		t, err := ptypes.Timestamp(cfg.NotAfterLimit)
-		if err != nil {
+		if err := cfg.NotAfterLimit.CheckValid(); err != nil {
 			return interval, fmt.Errorf("failed to parse NotAfterLimit: %v", err)
 		}
+		t := cfg.NotAfterLimit.AsTime()
 		interval.upper = &t
 	}
 

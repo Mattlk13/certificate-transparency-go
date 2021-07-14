@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,16 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/certificate-transparency-go/trillian/ctfe"
 	"github.com/google/certificate-transparency-go/trillian/ctfe/configpb"
 	"github.com/google/trillian/crypto/keyspb"
 	"github.com/google/trillian/storage/testdb"
-
-	// Register PEMKeyFile and PrivateKey ProtoHandlers.
-	_ "github.com/google/trillian/crypto/keys/der/proto"
-	_ "github.com/google/trillian/crypto/keys/pem/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	timestamp "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -118,7 +114,7 @@ func TestInProcessCTIntegration(t *testing.T) {
 	}
 
 	pubKey := &keyspb.PublicKey{Der: pubKeyDER}
-	privKey, err := ptypes.MarshalAny(&keyspb.PEMKeyFile{Path: privKeyPEMFile, Password: privKeyPassword})
+	privKey, err := anypb.New(&keyspb.PEMKeyFile{Path: privKeyPEMFile, Password: privKeyPassword})
 	if err != nil {
 		t.Fatalf("Could not marshal private key as protobuf Any: %v", err)
 	}

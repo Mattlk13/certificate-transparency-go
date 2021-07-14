@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,24 +15,23 @@
 package ctfe
 
 import (
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"strings"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/any"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/certificate-transparency-go/trillian/ctfe/configpb"
-	"github.com/google/trillian/crypto/keys/der"
-	_ "github.com/google/trillian/crypto/keys/der/proto" // Register key handler.
-	"github.com/google/trillian/crypto/keys/pem"
 	"github.com/google/trillian/crypto/keyspb"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
-	invalidTimestamp = &timestamp.Timestamp{Nanos: int32(1e9)}
+	invalidTimestamp = &timestamppb.Timestamp{Nanos: int32(1e9)}
 
 	// validSTH is an STH signed by "../testdata/ct-http-server.privkey.pem".
 	validSTH = &configpb.SignedTreeHead{
@@ -43,8 +42,8 @@ var (
 	}
 )
 
-func mustMarshalAny(pb proto.Message) *any.Any {
-	ret, err := ptypes.MarshalAny(pb)
+func mustMarshalAny(pb proto.Message) *anypb.Any {
+	ret, err := anypb.New(pb)
 	if err != nil {
 		panic(fmt.Sprintf("MarshalAny failed: %v", err))
 	}
@@ -52,15 +51,20 @@ func mustMarshalAny(pb proto.Message) *any.Any {
 }
 
 func mustReadPublicKey(path string) *keyspb.PublicKey {
-	pubKey, err := pem.ReadPublicKeyFile(path)
+	keyPEM, err := ioutil.ReadFile(path)
+	if err != nil {
+		panic(fmt.Sprintf("ioutil.ReadFile(%q): %v", path, err))
+	}
+	block, _ := pem.Decode(keyPEM)
+	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
 		panic(fmt.Sprintf("ReadPublicKeyFile(): %v", err))
 	}
-	ret, err := der.ToPublicProto(pubKey)
+	keyDER, err := x509.MarshalPKIXPublicKey(pubKey)
 	if err != nil {
-		panic(fmt.Sprintf("ToPublicProto(): %v", err))
+		panic(fmt.Sprintf("x509.MarshalPKIXPublicKey(): %v", err))
 	}
-	return ret
+	return &keyspb.PublicKey{Der: keyDER}
 }
 
 func mustDecodeBase64(str string) []byte {
@@ -100,7 +104,7 @@ func TestValidateLogConfig(t *testing.T) {
 		},
 		{
 			desc:    "invalid-public-key-empty",
-			wantErr: "invalid public key",
+			wantErr: "x509.ParsePKIXPublicKey",
 			cfg: &configpb.LogConfig{
 				LogId:     123,
 				PublicKey: &keyspb.PublicKey{},
@@ -109,7 +113,7 @@ func TestValidateLogConfig(t *testing.T) {
 		},
 		{
 			desc:    "invalid-public-key-abacaba",
-			wantErr: "invalid public key",
+			wantErr: "x509.ParsePKIXPublicKey",
 			cfg: &configpb.LogConfig{
 				LogId:     123,
 				PublicKey: &keyspb.PublicKey{Der: []byte("abacaba")},
@@ -126,7 +130,7 @@ func TestValidateLogConfig(t *testing.T) {
 			wantErr: "invalid private key",
 			cfg: &configpb.LogConfig{
 				LogId:      123,
-				PrivateKey: &any.Any{},
+				PrivateKey: &anypb.Any{},
 			},
 		},
 		{
@@ -164,7 +168,7 @@ func TestValidateLogConfig(t *testing.T) {
 			cfg: &configpb.LogConfig{
 				LogId:        123,
 				PrivateKey:   privKey,
-				ExtKeyUsages: []string{"Any", "ServerAuth", "TimeStomping"},
+				ExtKeyUsages: []string{"ClientAuth", "ServerAuth", "TimeStomping"},
 			},
 		},
 		{
@@ -200,8 +204,8 @@ func TestValidateLogConfig(t *testing.T) {
 			cfg: &configpb.LogConfig{
 				LogId:         123,
 				PrivateKey:    privKey,
-				NotAfterStart: &timestamp.Timestamp{Seconds: 200},
-				NotAfterLimit: &timestamp.Timestamp{Seconds: 100},
+				NotAfterStart: &timestamppb.Timestamp{Seconds: 200},
+				NotAfterLimit: &timestamppb.Timestamp{Seconds: 100},
 			},
 		},
 		{
@@ -294,7 +298,7 @@ func TestValidateLogConfig(t *testing.T) {
 			cfg: &configpb.LogConfig{
 				LogId:         123,
 				PrivateKey:    privKey,
-				NotAfterStart: &timestamp.Timestamp{Seconds: 100},
+				NotAfterStart: &timestamppb.Timestamp{Seconds: 100},
 			},
 		},
 		{
@@ -302,7 +306,7 @@ func TestValidateLogConfig(t *testing.T) {
 			cfg: &configpb.LogConfig{
 				LogId:         123,
 				PrivateKey:    privKey,
-				NotAfterLimit: &timestamp.Timestamp{Seconds: 200},
+				NotAfterLimit: &timestamppb.Timestamp{Seconds: 200},
 			},
 		},
 		{
@@ -310,8 +314,8 @@ func TestValidateLogConfig(t *testing.T) {
 			cfg: &configpb.LogConfig{
 				LogId:         123,
 				PrivateKey:    privKey,
-				NotAfterStart: &timestamp.Timestamp{Seconds: 300},
-				NotAfterLimit: &timestamp.Timestamp{Seconds: 400},
+				NotAfterStart: &timestamppb.Timestamp{Seconds: 300},
+				NotAfterLimit: &timestamppb.Timestamp{Seconds: 400},
 			},
 		},
 		{

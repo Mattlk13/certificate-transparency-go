@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,11 +16,12 @@ package ctfe
 
 import (
 	"crypto"
+	"crypto/x509"
+	"encoding/pem"
 	"testing"
 	"time"
 
 	"github.com/google/certificate-transparency-go/trillian/testdata"
-	"github.com/google/trillian/crypto/keys/pem"
 )
 
 var (
@@ -31,7 +32,8 @@ var (
 )
 
 func TestGetCTLogID(t *testing.T) {
-	pk, err := pem.UnmarshalPublicKey(testdata.DemoPublicKey)
+	block, _ := pem.Decode([]byte(testdata.DemoPublicKey))
+	pk, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
 		t.Fatalf("unexpected error loading public key: %v", err)
 	}
@@ -49,7 +51,8 @@ func TestGetCTLogID(t *testing.T) {
 // Creates a fake signer for use in interaction tests.
 // It will always return fakeSig when asked to sign something.
 func setupSigner(fakeSig []byte) (crypto.Signer, error) {
-	key, err := pem.UnmarshalPublicKey(testdata.DemoPublicKey)
+	block, _ := pem.Decode([]byte(testdata.DemoPublicKey))
+	key, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
 		return nil, err
 	}

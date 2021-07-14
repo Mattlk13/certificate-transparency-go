@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016 Google LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/google/certificate-transparency-go/client"
 	"github.com/google/certificate-transparency-go/jsonclient"
 	"github.com/google/certificate-transparency-go/trillian/ctfe"
@@ -45,15 +44,14 @@ import (
 	"github.com/google/certificate-transparency-go/x509/pkix"
 	"github.com/google/trillian"
 	"github.com/google/trillian/crypto/keyspb"
-	"github.com/google/trillian/merkle"
-	"github.com/google/trillian/merkle/rfc6962"
+	"github.com/google/trillian/merkle/logverifier"
+	"github.com/google/trillian/merkle/rfc6962/hasher"
 	"github.com/kylelemons/godebug/pretty"
 	"golang.org/x/net/context/ctxhttp"
-	"google.golang.org/genproto/protobuf/field_mask"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	ct "github.com/google/certificate-transparency-go"
-	keyspem "github.com/google/trillian/crypto/keys/pem"
 )
 
 const (
@@ -126,7 +124,7 @@ type testInfo struct {
 	adminServer    string
 	stats          *logStats
 	pool           ClientPool
-	verifier       merkle.LogVerifier
+	verifier       logverifier.LogVerifier
 }
 
 func (t *testInfo) checkStats() error {
@@ -266,7 +264,7 @@ func RunCTIntegrationForLog(cfg *configpb.LogConfig, servers, metricsServers, te
 		metricsServers: metricsServers,
 		stats:          stats,
 		pool:           pool,
-		verifier:       merkle.NewLogVerifier(rfc6962.DefaultHasher),
+		verifier:       logverifier.New(hasher.DefaultHasher),
 	}
 
 	if err := t.checkStats(); err != nil {
@@ -632,7 +630,7 @@ func RunCTLifecycleForLog(cfg *configpb.LogConfig, servers, metricsServers, admi
 		adminServer:    adminServer,
 		stats:          stats,
 		pool:           pool,
-		verifier:       merkle.NewLogVerifier(rfc6962.DefaultHasher),
+		verifier:       logverifier.New(hasher.DefaultHasher),
 	}
 
 	if err := t.checkStats(); err != nil {
@@ -849,7 +847,19 @@ func buildNewPrecertData(cert, issuer *x509.Certificate, signer crypto.Signer) (
 
 // MakeSigner creates a signer using the private key in the test directory.
 func MakeSigner(testDir string) (crypto.Signer, error) {
-	key, err := keyspem.ReadPrivateKeyFile(filepath.Join(testDir, "int-ca.privkey.pem"), "babelfish")
+	fileName := filepath.Join(testDir, "int-ca.privkey.pem")
+	keyPEM, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file %q: %w", fileName, err)
+	}
+
+	block, _ := pem.Decode(keyPEM)
+	decPEM, err := x509.DecryptPEMBlock(block, []byte("babelfish"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt file %q: %w", fileName, err)
+	}
+
+	key, err := x509.ParseECPrivateKey(decPEM)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load private key for re-signing: %v", err)
 	}
@@ -956,7 +966,7 @@ func (ls *logStats) check(cfg *configpb.LogConfig, servers string) error {
 }
 
 func setTreeState(ctx context.Context, adminServer string, logID int64, state trillian.TreeState) error {
-	treeStateMask := &field_mask.FieldMask{
+	treeStateMask := &fieldmaskpb.FieldMask{
 		Paths: []string{"tree_state"},
 	}
 
@@ -990,25 +1000,25 @@ func NotAfterForLog(c *configpb.LogConfig) (time.Time, error) {
 	}
 
 	if c.NotAfterStart != nil {
-		start, err := ptypes.Timestamp(c.NotAfterStart)
-		if err != nil {
+		if err := c.NotAfterStart.CheckValid(); err != nil {
 			return time.Time{}, fmt.Errorf("failed to parse NotAfterStart: %v", err)
 		}
+		start := c.NotAfterStart.AsTime()
 		if c.NotAfterLimit == nil {
 			return start.Add(24 * time.Hour), nil
 		}
 
-		limit, err := ptypes.Timestamp(c.NotAfterLimit)
-		if err != nil {
+		if err := c.NotAfterLimit.CheckValid(); err != nil {
 			return time.Time{}, fmt.Errorf("failed to parse NotAfterLimit: %v", err)
 		}
+		limit := c.NotAfterLimit.AsTime()
 		midDelta := limit.Sub(start) / 2
 		return start.Add(midDelta), nil
 	}
 
-	limit, err := ptypes.Timestamp(c.NotAfterLimit)
-	if err != nil {
+	if err := c.NotAfterLimit.CheckValid(); err != nil {
 		return time.Time{}, fmt.Errorf("failed to parse NotAfterLimit: %v", err)
 	}
+	limit := c.NotAfterLimit.AsTime()
 	return limit.Add(-1 * time.Hour), nil
 }

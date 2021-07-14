@@ -1,4 +1,4 @@
-// Copyright 2018 Google Inc. All Rights Reserved.
+// Copyright 2018 Google LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ var (
 	logList        = flag.String("log_list", loglist.AllLogListURL, "Location of master CT log list (URL or filename)")
 	deadline       = flag.Duration("deadline", 30*time.Second, "Timeout deadline for HTTP requests")
 	checkInclusion = flag.Bool("check_inclusion", true, "Whether to check SCT inclusion in issuing CT log")
-	useDNS         = flag.Bool("dns", false, "Use DNS access points for inclusion checking")
 )
 
 type logInfoFactory func(*loglist.Log, *http.Client) (*ctutil.LogInfo, error)
@@ -63,9 +62,6 @@ func main() {
 	}
 
 	lf := ctutil.NewLogInfo
-	if *useDNS {
-		lf = ctutil.NewLogInfoOverDNSWrapper
-	}
 
 	totalInvalid := 0
 	for _, arg := range flag.Args() {
