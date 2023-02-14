@@ -8,7 +8,7 @@ require (
 	contrib.go.opencensus.io/exporter/stackdriver v0.12.8 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
-	github.com/aws/aws-sdk-go v1.25.35 // indirect
+	github.com/aws/aws-sdk-go v1.34.0 // indirect
 	github.com/bombsimon/wsl v1.2.8 // indirect
 	github.com/coreos/etcd v3.3.18+incompatible
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
@@ -60,7 +60,7 @@ require (
 	go.uber.org/multierr v1.4.0 // indirect
 	go.uber.org/zap v1.13.0 // indirect
 	golang.org/x/crypto v0.0.0-20191112222119-e1110fd1c708
-	golang.org/x/net v0.0.0-20191112182307-2180aed22343
+	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	golang.org/x/tools v0.0.0-20191114222411-4191b8cbba09 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
