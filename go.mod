@@ -18,9 +18,9 @@ require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9 // indirect
 	github.com/golang/mock v1.4.1
-	github.com/golang/protobuf v1.3.3
+	github.com/golang/protobuf v1.4.3
 	github.com/golangci/golangci-lint v1.21.0 // indirect
-	github.com/google/go-cmp v0.4.0
+	github.com/google/go-cmp v0.5.5
 	github.com/google/monologue v0.0.0-20191105172128-0324c8b45f6f
 	github.com/google/trillian v1.3.3
 	github.com/google/trillian-examples v0.0.0-20190913140658-376d12f9f5ae
@@ -44,7 +44,7 @@ require (
 	github.com/mwitkow/go-proto-validators v0.2.0 // indirect
 	github.com/olekukonko/tablewriter v0.0.2 // indirect
 	github.com/pelletier/go-toml v1.6.0 // indirect
-	github.com/prometheus/client_golang v1.4.1
+	github.com/prometheus/client_golang v1.11.1
 	github.com/rs/cors v1.7.0
 	github.com/russross/blackfriday v2.0.0+incompatible // indirect
 	github.com/securego/gosec v0.0.0-20191104154532-b4c76d4234af // indirect
@@ -59,8 +59,8 @@ require (
 	go.opencensus.io v0.22.2 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
 	go.uber.org/zap v1.13.0 // indirect
-	golang.org/x/crypto v0.0.0-20191112222119-e1110fd1c708
-	golang.org/x/net v0.0.0-20191112182307-2180aed22343
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/net v0.0.0-20200625001655-4c5254603344
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	golang.org/x/tools v0.0.0-20191114222411-4191b8cbba09 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
